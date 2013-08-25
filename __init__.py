@@ -392,7 +392,7 @@ class Tickline(StencilView):
     def get_index_mid(self):
         return (self.index_0 + self.index_1) / 2.
     def set_index_mid(self, val):
-        half_length = self.max_pos / 2. / self.scale
+        half_length = self.line_length / 2. / self.scale
         self.index_0 = val - half_length
         self.index_1 = val + half_length
     index_mid = AliasProperty(get_index_mid, set_index_mid,
@@ -401,14 +401,14 @@ class Tickline(StencilView):
     Setting this attribute as the effect of translating the tickline.
     '''
     
-    def get_max_pos(self):
+    def get_line_length(self):
         return self.size[1 if self.is_vertical() else 0]  
-    def set_max_pos(self, val):
+    def set_line_length(self, val):
         if self.is_vertical():
             self.size[1] = val
         else:
             self.size[0] = val
-    max_pos = AliasProperty(get_max_pos, set_max_pos, cache=True,
+    line_length = AliasProperty(get_line_length, set_line_length, cache=True,
                             bind=['size', 'orientation'])
     '''returns the length of the :class:`Tickline` widget along the direction
     it extends.'''
@@ -450,12 +450,12 @@ class Tickline(StencilView):
     def _get_scale_max(self, *args):
         if not self.ticks:
             return float('inf')
-        return max(self.max_pos * tick.scale_factor
+        return max(self.line_length * tick.scale_factor
                    for tick in self.ticks)        
     def set_scale_max(self, val):
         self._scale_max = val
     scale_max = AliasProperty(get_scale_max, set_scale_max,
-                              bind=['_scale_max', 'max_pos', 'scale', 'ticks'])
+                              bind=['_scale_max', 'line_length', 'scale', 'ticks'])
     '''maximal bound on :attr:`scale`,
     specifying the max that one can zoom *in*. If None, then one can zoom in
     as long as the narrowest set of ticks has spacing no greater than this
@@ -473,13 +473,13 @@ class Tickline(StencilView):
             self._versioned_scale = None
             return scale
         try:
-            return self.max_pos / (self.index_1 - self.index_0) * self.dir 
+            return self.line_length / (self.index_1 - self.index_0) * self.dir 
         except ZeroDivisionError:
             return float('inf')
     def set_scale(self, val):
-        self.index_1 = self.index_0 + self.dir * self.max_pos / val
+        self.index_1 = self.index_0 + self.dir * self.line_length / val
     scale = AliasProperty(get_scale, set_scale,
-                          bind=['index_0', 'index_1', 'max_pos', 'dir'])
+                          bind=['index_0', 'index_1', 'line_length', 'dir'])
     '''the distance between 2 ticks of consecutive *global index*.'''
     
     redraw = ObjectProperty(None)
@@ -610,7 +610,7 @@ class Tickline(StencilView):
     def index2pos(self, index, i0=None, i1=None, i_mid=None):
         '''returns the position of a index (the global index, not a localized
         tick index), even if out of screen, based on the current :attr:`index_0`
-        , :attr:`index_1`, and :attr:`max_pos`. Optionally, ``i0`` and/or
+        , :attr:`index_1`, and :attr:`line_length`. Optionally, ``i0`` and/or
         ``i1`` can be given to replace respectively :attr:`index_0` and
         :attr:`index_1` in the calculation.
         
@@ -629,11 +629,11 @@ class Tickline(StencilView):
             ``i_mid`` using the current :attr:`scale`.
          ''' 
         if i_mid is not None:
-            i0 = i_mid - float(self.max_pos) / 2 / self.scale * self.dir
-            i1 = i_mid + float(self.max_pos) / 2 / self.scale * self.dir
+            i0 = i_mid - float(self.line_length) / 2 / self.scale * self.dir
+            i1 = i_mid + float(self.line_length) / 2 / self.scale * self.dir
         else:
             i0, i1 = i0 or self.index_0, i1 or self.index_1
-        return float(i0 - index) / (i0 - i1) * self.max_pos + self.pos0
+        return float(i0 - index) / (i0 - i1) * self.line_length + self.pos0
         
     def calc_intercept(self, anchor, antianchor, to_window=False): 
         '''given 2 points ``anchor`` and ``antianchor`` (that usually
@@ -862,7 +862,7 @@ class Tickline(StencilView):
         changed = inter != old_inter or new_scale != scale
 
         self.index_0 = index_0 = inter_index - self.dir * inter / new_scale
-        self.index_1 = index_0 + self.dir * self.max_pos / new_scale 
+        self.index_1 = index_0 + self.dir * self.line_length / new_scale 
         # need to update the scroll effect history so that on touch up
         # it doesn't jump
         self.scroll_effect.update(self.index_mid)
