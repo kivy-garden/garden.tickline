@@ -1,7 +1,4 @@
-
-# cython: profile=True
 from bisect import bisect_left, bisect
-from gui.android import logutils
 from kivy.base import runTouchApp
 from kivy.clock import Clock
 from kivy.core.image import Image
@@ -23,30 +20,32 @@ from kivy.uix.label import Label
 from kivy.uix.stencilview import StencilView
 from kivy.uix.widget import Widget
 from kivy.vector import Vector
-from kutils.funcs import MinimalStr
-from kutils.math import about_eq
 from math import ceil, floor
-try:
-    import cython
-except ImportError:
-    import kutils.dummy_cython as cython
-if __debug__:
-    from gui.android.profiler import profileit, lineprof
-else:
-    profileit = lineprof = lambda x: x
-logger = logutils.getLogger(__name__, 'INFO', 'INFO')
 
 class TickLabeller(Widget):
-    '''handles labelling for a :class:`Tickline`. The TickLabeller is intended
-    for a one-time use for each redraw. At the beginning of a redraw, the
-    :class:`Tickline` removes all labels in :attr:`TickLabeller.labels` and
-    create a new instance of TickLabeller that collects tick information
-    throughout the redraw, using :meth:`TickLabeller.register`. After drawing
-    all ticks and registering all tick information, the 
-    :meth:`TickLabeller.make_labels()` should be called to explicitly 
-    construct the :attr:`TickLabeller.labels`. See :meth:`Tickline._redraw`,
-    :meth:`Tickline.clear_labels`, and :meth:`Tick.display' for actual
-    usage.
+    '''handles labelling and/or custom graphics for a :class:`Tickline`. 
+    
+    Often, when there are multiple :class:`Tick`s drawn on a :class:`Tickline`,
+    labelling can become messy. For example, if a major tick coincides with
+    a minor tick, without some customization of display logic, the major
+    label will sit on top of the minor label. The :class:`TickLabeller` is
+    designed to centralize tick information and elegantly handle labelling
+    and/or custom graphics.
+    
+    Its work cycle corresponds to each :meth:`~Tickline.redraw`. 
+    
+    At the start of redraw, the method :meth:`re_init` is called. This should 
+    set up the :class:`TickLabeller` for a new round of labelling. 
+    
+    During the redraw, ticks that need to be labelled should called 
+    :meth:`register` to register the relevant information for rendering
+    a label.
+    
+    Finally, at the end of redraw, :class:`Tickline` calls :meth:`make_labels`
+    to produce the labels. Note that it is not required to reproduce labels
+    in :meth:`make_labels` at every run, or to delay the production of labels
+    to :meth:`make_labels` --- it is entirely possible to label on demand
+    in :meth:`register`. 
     
     A class can inherit from this or just ducktype to be used similarly
     with :class:`Tickline` and :class:`Tick`.'''
@@ -128,24 +127,10 @@ class CompositeLabeller(TickLabeller):
             labeller.make_labels()
         
 Builder.load_string('''
-#: import ScatterPlane kivy.uix.scatter.ScatterPlane
-#: import KScatterPlane gui.android.kscatter.KScatterPlane
 <Tickline>:
-#     in_motion: 
-#         (self.scroll_effect.velocity > 0 or self.scroll_effect.is_manual) \
-#         if self.scroll_effect is not None else True
-#         
     tickruler: tickruler
     Widget:
         id: tickruler
-#     Label:
-#         size: root.size
-#         pos: root.pos
-#         size_hint: (None, None) 
-#         text: '{}, {}'.format(root.pos0, root.max_pos)
-#         halighn: 'left'
-#         text_size: self.width, None
-#         font_size: self.height /10                   
 ''')
 class Tickline(StencilView):
     def _get_scale_min(self, zoom, ticks):
@@ -259,9 +244,6 @@ class Tickline(StencilView):
     '''the class used to handle labelling.'''
     labeller = ObjectProperty(None)
     
-#     scatterplane = ObjectProperty(None)
-#     '''the :class:`KScatterPlane` instance passing touch signals to this
-#     :class:`Tickline`.'''
     densest_tick = ObjectProperty(None)
     '''represents the smallest interval shown on screen.'''
     
@@ -272,12 +254,10 @@ class Tickline(StencilView):
     drag_threshold = NumericProperty('20sp')
     '''the threshold to determine whether a touch constitutes a scroll.'''
     
-#     texture = ObjectProperty(None)
     #===========================================================================
     # scatter attributes 
     #===========================================================================
     
-    @cython.locals(sc=cython.double, zoom=cython.double)
     def get_scale(self):
         if self._versioned_scale is not None:
             scale = self._versioned_scale
@@ -312,7 +292,6 @@ class Tickline(StencilView):
     _versioned_scale = NumericProperty(None, allownone=True)
     '''(internal) used to suppress :attr:`scale` change during a translation.'''
     
-#     line_intercept = NumericProperty(0)
     
     #===========================================================================
     # methods 
@@ -340,15 +319,6 @@ class Tickline(StencilView):
         self.on_ticks()
         self._update_densest_tick()
         self.labeller = self.labeller_cls(self)
-#     def trigger_calibrate(self):
-#         '''convenience method for triggering scroll effect calibration without
-#         unnecessarily triggering translate effect.'''
-#         self.scatterplane.no_translate_effect = True
-#         self._trigger_calibrate()
-#     def on_in_motion(self, *args):
-#         if not self.scroll_effect:
-#             return
-#         print '{} now in motion:', self.scroll_effect.velocity, self.scroll_effect.is_manual
     def update_motion(self, *args):
         effect = self.scroll_effect
         self.in_motion = effect.velocity or effect.is_manual
@@ -380,12 +350,9 @@ class Tickline(StencilView):
         effect.bind(scroll=self._update_from_scroll)
         effect.bind(velocity=self.update_motion,
                     is_manual=self.update_motion)
-#         effect.bind(scroll=self.print_scroll,
-#                     velocity=self.print_scroll)
     def _update_effect_constants(self, *args):
         if not self.scroll_effect:
             return
-#         print 'updating effect constants'
         scale = self.scale
         effect = self.scroll_effect
         effect.drag_threshold = self.drag_threshold / scale
@@ -393,18 +360,12 @@ class Tickline(StencilView):
         effect.min_velocity = .1 / scale
         effect.min_overscroll = .5 / scale
         return True
-#         effect.spring_constant = 2.0 / scale
         
-    def print_scroll(self, *args):
-#         print 'self.scroll_effect.scroll changed to', self.scroll_effect.scroll
-#         print '    velocity changed to', self.scroll_effect.velocity
-        pass
     def translate_by(self, distance):
         self._versioned_scale = self.scale
         self.index_0 += distance
         self.index_1 += distance
     def _update_from_scroll(self, *args, **kw):
-#         print '\tupdating indices from scroll'
         # possible dispatch loop here: will have to watch for it in the future
         new_mid = self.scroll_effect.scroll
         shift = new_mid - self.index_mid
@@ -423,7 +384,6 @@ class Tickline(StencilView):
         except AttributeError:
             return
     def calibrate_scroll_effect(self, *args, **kw):
-#         print '\tcalibrating scroll effect'
         if not self.scroll_effect:
             return
         effect = self.scroll_effect
@@ -432,52 +392,6 @@ class Tickline(StencilView):
         effect.value = self.index_mid
         return True
         
-#     def calibrate_scroll_effect(self, *args, **kw):
-#         '''calibrates the :attr:`~ScrollEffect.value`, 
-#         :attr:`~ScrollEffect.min` and :attr:`~ScrollEffect.max` for 
-#         :attr:`scroll_effect`. This is especially important for getting
-#         overscroll effects.
-#          
-#         .. warning::
-#             In most circumstances, do not use this method by itself; use
-#             the trigger :attr:`_trigger_calibrate` instead. The reason
-#             is that :attr:`scatterplane` transmits translation signals
-#             by acruing a history of scroll values, and if multiple 
-#             calls to this method happens before the 
-#             :attr:`KScatterPlane.translate_effects_trigger` call, then
-#             the translation will over compensate.'''
-#          
-#         logger.debug('scroll effect calibration starts: value %s',
-#                      self.scroll_effect.value)
-#         redraw = kw.pop('redraw', True)
-#         min_ = self.scroll_effect.min = self.index2pos(0, i_mid=self.max_index)
-#         max_ = self.scroll_effect.max = self.index2pos(0, i_mid=self.min_index)
-#          
-#         # there's a numeric accuracy bug with NumericProperty, such that
-#         # if I directly set ``self.scroll_effect.value`` to ``v``
-#         # it would trigger unnecessarily when they get too close and thus 
-#         # initiate an infinite loop
-#         v = self.index2pos(0)
-# #         if about_eq(v, self.scroll_effect.value, tol=None):
-# #             return
-#         self.scatterplane.no_translate_effect = True
-#         self.scroll_effect.value = v
-#         if v > max_:
-#             translate = Vector(0, (max_ - v) * self.dir) \
-#                             if self.is_vertical() else \
-#                                 Vector((max_ - v) * self.dir, 0)
-#             self.update_from_translate(translate)
-#             if redraw:
-#                 self.redraw()
-#         elif v < min_:
-#             translate = Vector(0, (min_ - v) * self.dir) \
-#                             if self.is_vertical() else \
-#                                 Vector((min_ - v) * self.dir, 0)
-#             self.update_from_translate(translate)
-#             if redraw:
-#                 self.redraw()
-#         logger.debug('scroll effect calibration ends: value %s',
-#                      self.scroll_effect.value)        
     def pos2index(self, pos, window=False):
         '''converts a position coordinate along the tickline direction to its
         index. If ``window`` is given as True, then the coordinate is assumed
@@ -525,8 +439,6 @@ class Tickline(StencilView):
         .. note::
             ``anchor`` and ``antianchor`` are assumed to have window coordinates.
         '''
-#         return to_window * self.pos0 + \
-#             self._midpoint_intercept(anchor - self.pos, antianchor - self.pos)
         
         if self.is_vertical():
             return (anchor.y + antianchor.y) / 2 - (1 - to_window) * self.pos0
@@ -552,23 +464,6 @@ class Tickline(StencilView):
         w = self.line_pos
         return (a * y - w * y + w * b - x * b) / (a - x)
     
-#     def update_tick_offset(self, inter, old_inter, scale, scale_factor,
-#                            old_offset):
-#         '''calculates the new :attr:`_tick_offset` based on old data and also
-#         returns the change in :attr:`global_index`.
-#         
-#         :param inter: the destination of the fixed point of the scaling
-#         :param old_inter: the source of the fixed point of the scaling
-#         :param scale: the new :attr:`Tickline.scale`
-#         :param scale_factor: the ratio of ``scale`` to the old scale
-#         :param old_offset: the previous :attr:`Tickline.offset`'''
-#         _t = r = (float(old_offset - old_inter) * 
-#                   float(scale_factor)
-#                   + inter)
-#         r %= scale
-#         global_change = int(round((r - _t) / scale)) * self.dir
-#         assert r >= 0
-#         return r, global_change
     def is_vertical(self):
         return self.orientation == 'vertical'
     def init_center_line_instruction(self):
@@ -634,56 +529,6 @@ class Tickline(StencilView):
                              self.line_pos],
                      width=self.line_width,
                      cap='none')
-#     def update_from_scatter_attrs(self):
-#         if (self.anchor and self.antianchor and self.pantianchor):
-#             assert not self.translate 
-#             return self.update_from_zoom()
-#         elif self.translate:
-#             assert not (self.anchor and self.antianchor and self.pantianchor)
-#             return self.update_from_translate()
-#         else:
-#             return False
-#     def update_from_zoom(self, *args):
-#         anchor, antianchor, pantianchor = \
-#             self.anchor, self.antianchor, self.pantianchor
-#         logger.debug('zoom: anchor %s, antianchor %s, pantianchor %s',
-#                      anchor, antianchor, pantianchor)
-#         try:
-#             inter = self.calc_intercept(anchor, antianchor)
-#             old_inter = self.calc_intercept(anchor, pantianchor)
-#         except ZeroDivisionError:
-#             return False
-#         scale_factor = ((antianchor - anchor).length() / 
-#                         (pantianchor - anchor).length())
-#         logger.debug('scaling by %s', scale_factor)
-#         self._tick_offset, global_change = \
-#             self.update_tick_offset(inter, old_inter,
-#                                     self.scale, scale_factor,
-#                                     self._tick_offset)
-#         self.global_index += global_change
-#         assert self._tick_offset < self.scale
-#         self.calibrate_scroll_effect()
-#         return True
-        
-#     def update_from_translate(self, translate=None, *args):
-#         translate = translate or self.translate
-#         self._tick_offset += translate.y if self.is_vertical() \
-#                                 else translate.x
-#         _t = self._tick_offset
-#         self._tick_offset %= self.scale
-#         self.global_index += int(round((self._tick_offset - _t) / 
-#                                        self.scale) * self.dir)
-#         assert self._tick_offset < self.scale
-#         self.calibrate_scroll_effect()
-#         return True
-        
-    def clear_labels(self):
-#         try:
-#             for label in self.labeller.labels:
-#                 self.remove_widget(label)
-#         except AttributeError:
-#             pass
-        self.labeller.re_init()
     def init_background_instruction(self, *args):
         self.background_instr = instrg = InstructionGroup()
         instrg.add(Color(*self.background_color))
@@ -697,48 +542,17 @@ class Tickline(StencilView):
         instrg.clear()
         instrg.add(Color(*self.background_color))
         instrg.add(Rectangle(pos=self.pos, size=self.size))
-#     def draw_background(self, *args):
-#         with self.tickruler.canvas:
-#             Color(*self.background_color)
-# #             if self.texture:
-# #                 Rectangle(pos=self.pos,
-# #                           size=self.size,
-# #                           texture=self.texture)
-# #             else:
-#             Rectangle(pos=self.pos,
-#                       size=self.size)  
-#     @profileit              
     def _redraw(self, *args):
         if not self.tickruler:
             return
-        self.clear_labels()
-#         self.tickruler.canvas.clear()
-#         self.draw_background()
-#         if self.draw_line:
-#             self.draw_center_line()
+        self.labeller.re_init()
+
         # draw ticks
         for tick in self.ticks:
             tick.display(self)
         
-#         self.tickruler.canvas.ask_update()
-        # add labels
-        
+        # update labels
         self.labeller.make_labels()
-#         for label in self.labeller.labels:
-#             self.add_widget(label)
-#     def redraw_with_scatter(self, *args):
-#         if self.update_from_scatter_attrs():
-#             self.redraw()
-#     def on_size(self, *args):
-#         for callback in self.before_resize:
-#             callback()
-#         self._redraw_trigger()
-#     def on_tickruler(self, *args):
-#         self._redraw_trigger()
-#     def on_orientation(self, *args):
-#         self._redraw_trigger()
-#     def on_ticks(self, *args):
-#         self._redraw_trigger()
     def _update_densest_tick(self, *args):
         tol = self.scale_tolerances
         scale = self.scale
@@ -751,13 +565,11 @@ class Tickline(StencilView):
         except IndexError:
             self.densest_tick = None
     def on_scale(self, *args):
-        logger.debug('Tickline %s updates scale to %s', self, self.scale)
         self._update_densest_tick()
         self._update_effect_constants()
         self.redraw()
        
     def on_touch_down(self, touch):
-#         print '\t\tdispatching touch down'
         x, y = touch.x, touch.y
         
         if not self.collide_point(x, y):
@@ -776,7 +588,6 @@ class Tickline(StencilView):
     def translate_now(self):
         return len(self._touches) == self.translation_touches
     def on_touch_move(self, touch):
-#         print '\t\tdispatching touch move'
         x, y = touch.x, touch.y
         collide = self.collide_point(x, y)
         
@@ -801,7 +612,6 @@ class Tickline(StencilView):
                 d = touch.y - self._last_touch_pos[touch][1]
 
             d = d / self.translation_touches
-#             self.translate_by(- d / scale * self.dir)
             self.scroll_effect.update(self.index_mid - d / scale * self.dir)
             changed = True
             
@@ -839,10 +649,6 @@ class Tickline(StencilView):
         scale_factor = ((antianchor - anchor).length() / 
                         (pantianchor - anchor).length())
         new_scale = scale_factor * scale
-#         if new_scale < self.scale_min:
-#             new_scale = self.scale_min
-#         elif new_scale > self.scale_max:
-#             new_scale = self.scale_max
 
         changed = inter != old_inter or new_scale != scale
 
@@ -856,7 +662,6 @@ class Tickline(StencilView):
         return changed
     
     def on_touch_up(self, touch):
-#         print '\t\tdispatching touch up'
         x, y = touch.x, touch.y
         
         if not touch.grab_current == self:
@@ -872,7 +677,7 @@ class Tickline(StencilView):
             
         if self.collide_point(x, y):
             return True
-class Tick(MinimalStr, Widget): 
+class Tick(Widget): 
     '''an object that holds information about a set of ticks to be drawn
     into :class:`Tickline`.'''
     tick_size = ListProperty([dp(2), dp(8)])
@@ -946,18 +751,6 @@ class Tick(MinimalStr, Widget):
         '''
         return index * self.scale_factor
     
-#     def get_label(self, index, **kw):
-#         '''
-#         Return a Label for a tick given its ordinal position. Return None if
-#         there shouldn't be a label at ``index``.
-#         
-#         :param index: the ordinal number of a tick from the 0th tick, 
-#             which is the tick that would have :attr:`Tickline.global_index` 0
-#             if it were the first visible tick.
-#         :param kw: keyword args passed to Label
-#         '''
-#         kw['font_size'] = self.tick_size[1] * 2
-#         return Label(text=str(index), **kw)
     
     def get_label_texture(self, index, **kw):
         '''
@@ -1034,15 +827,11 @@ class Tick(MinimalStr, Widget):
         
         tick_index, tick_pos, tick_sc = \
             self._get_index_n_pos_n_scale(tl, True)
-#         print 'index, pos, sc', tick_index, tick_pos, tick_sc
-#         tick_index -= 1
-#         tick_pos -= tick_sc
         if tick_sc < self.min_space:
             raise StopIteration
         condition = self._index_condition(tl, True)
         pos0 = tl.y if tl.is_vertical() else tl.x
         while condition(tick_index):
-#             print '\tyielding', tick_pos + pos0, tick_index
             yield tick_pos + pos0, tick_index
             tick_pos += tick_sc
             tick_index += tl.dir    
@@ -1081,33 +870,6 @@ class Tick(MinimalStr, Widget):
         tick_rect = self.draw_tick(tickline, tick_pos)
         tickline.labeller.register(self, tick_index, tick_rect)
         
-#     def index2pos(self, index, current_offset,
-#                   offset_index=None, scale=None, dir_=1):
-#         '''converts a tick index to its position on screen. It has a regular
-#         version and a overloaded version, in which the only parameter in
-#         addition to ``index`` is a :class:`Tickline`.
-#         
-#         :param index: index to be converted
-#         :param current_offset: the position of the first visible tick. OR
-#             a :class:`Tickline`, in which case, all parameters below are
-#             not needed.
-#         :param offset_index: the global tick index of the first visible tick
-#         :param scale: the distance between neighboring ticks
-#         '''
-#         if isinstance(current_offset, Tickline):
-#             return self._index2pos(index, 0,
-#                                   self.localize(current_offset.index_0),
-#                                   self.scale(current_offset.scale),
-#                                   current_offset.dir)
-#         return self._index2pos(index, current_offset, offset_index, scale, dir_)
-#     
-# #     @cython.cfunc
-#     @cython.returns(cython.double)
-#     @cython.locals(index=cython.double, current_offset=cython.double,
-#                    offset_index=cython.double, scale=cython.double,
-#                    dir_=cython.int)
-#     def _index2pos(self, index, current_offset, offset_index, scale, dir_):
-#         return (index - offset_index) * scale * dir_ + current_offset
     def _get_index_n_pos_n_scale(self, tickline, extended=False):    
         ''' utility function for getting the first tick index and position
          at the bottom of the screen, along with the localized scale of the Tick.
@@ -1129,11 +891,8 @@ class Tick(MinimalStr, Widget):
         trunc = floor if tickline.backward else ceil
         tick_index = trunc(tick_index_0 - tickline.dir * self.offset) + \
                         tickline.dir * self.offset
-        tick_pos = (self.globalize(tick_index) - tickline.index_0) * tickline.scale * tickline.dir
-#         tick_pos = self.index2pos(tick_index,
-#                                   tickline._tick_offset,
-#                                   tickline.global_index * self.scale_factor,
-#                                   tick_sc, tickline.dir)
+        tick_pos = (self.globalize(tick_index) - tickline.index_0) * \
+                    tickline.scale * tickline.dir
         return tick_index, tick_pos, tick_sc
     
     def globalize(self, tick_index):
@@ -1145,13 +904,6 @@ class Tick(MinimalStr, Widget):
         '''
         return float(tick_index) / self.scale_factor
     
-#     @cython.ccall
-    @cython.returns(Rectangle)
-    @cython.locals(tick_pos=cython.double, return_only=cython.bint,
-                   x=cython.double, y=cython.double,
-                   width=cython.double, height=cython.double,
-                   tw=cython.double, th=cython.double)
-#     @lineprof
     def draw_tick(self, tickline, tick_pos, return_only=False):
         tw, th = self.tick_size
         if tickline.is_vertical():
@@ -1185,7 +937,6 @@ class Tick(MinimalStr, Widget):
                                    x + width, y, 0, 0,
                                    x, y, 0, 0,
                                    x, y + height, 0, 0])
-#         return Rectangle(pos=[x, y], size=[width, height])
         return (x, y, width, height)
     
 class LabellessTick(Tick):
@@ -1201,22 +952,10 @@ class DataListTick(Tick):
     data = ListProperty([])
     '''assumed to be sorted least to greatest'''
     min_label_space = NumericProperty(0)
-#     def _get_data_index_of_first_tick(self, tickline):
-# #         index = bisect_left([self.index2pos(index, first_tick_pos,
-# #                                              tick_index, tick_sc,
-# #                                              tickline.dir)
-# #                               for index in self.data[::tickline.dir]], 0)
-#         index = bisect_left([tickline.index2pos(self.globalize(index))
-#                               for index in self.data[::tickline.dir]], 0)
-#         if tickline.backward:
-#             index = len(self.data) - index - 1
-#         return index
     def tick_pos_index_iter(self, tl):
         index_0 = self.localize(self.extended_index_0(tl))
         index_1 = self.localize(self.extended_index_1(tl))
         tick_sc = self.scale(tl.scale)
-#         ref_tick_index, ref_tick_pos, tick_sc = \
-#             self._get_index_n_pos_n_scale(tl)        
         if tick_sc < self.min_space:
             raise StopIteration
             
@@ -1226,8 +965,6 @@ class DataListTick(Tick):
             tick_index = self.data[data_index]
             condition = self._index_condition(tl, True)
             while condition(tick_index):
-#                 print (tl.index2pos(self.globalize(tick_index)),
-#                        tick_index)
                 yield (tl.index2pos(self.globalize(tick_index)),
                        tick_index)
                 data_index += 1
@@ -1235,34 +972,8 @@ class DataListTick(Tick):
         except IndexError:
             raise StopIteration
         
-#         max_pos = tickline.max_pos
-#         tick_index, first_tick_pos, tick_sc = \
-#             self._get_index_n_pos_n_scale(tickline)        
-#         if tick_sc < self.min_space:
-#             yield StopIteration
-# 
-#         index = self._get_data_index_of_first_tick(first_tick_pos,
-#                                                    tick_index, tick_sc,
-#                                                    tickline)
-#         try:
-#             tick_pos = self.index2pos(self.data[index], first_tick_pos,
-#                                       tick_index, tick_sc, tickline.dir)
-#             while tick_pos <= max_pos:
-#                 yield tick_pos, self.data[index]
-#                 index += tickline.dir
-#                 tick_pos = self.index2pos(self.data[index], first_tick_pos,
-#                                           tick_index, tick_sc,
-#                                           tickline.dir)
-#         except IndexError:
-#             yield StopIteration
     
 if __name__ == '__main__':
-#     acc = KAccordion()
-#     acc.add_widget(TimelineAccordionItem())
-#     typical_item = AccordionItem()
-#     acc.add_widget(typical_item)
-#     acc.orientation = 'vertical'
-#     acc.min_space = '80pt'
     acc = Accordion(orientation='vertical')
     item = AccordionItem(title='hello')
     item.add_widget(Tickline(ticks=[Tick(tick_size=[4, 20], offset=.5),
