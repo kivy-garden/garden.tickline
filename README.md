@@ -101,6 +101,31 @@ In addition to the attributes introduced above, `Tickline.min_index`,
 `Tickline.max_scale` can be used to limit the sections of the Tickline
 that can be shown, and how much can be zoomed in or out.
 
+Here is a working example involving most of the discussion above
+
+	if __name__ == '__main__':
+	    acc = Accordion(orientation='vertical')
+	    complex_ = AccordionItem(title='complex_tickline')
+	    complex_.add_widget(Tickline(ticks=[Tick(tick_size=[4, 20], offset=.5),
+	                                    Tick(scale_factor=5., label_global=True),
+	                                    LabellessTick(tick_size=[1, 4],
+	                                         scale_factor=25.),
+	                                    DataListTick(data=[-0.3, 1, 1.5,
+	                                                       2, 4, 8, 16, 23],
+	                                                 scale_factor=5.,
+	                                                 halign='line_right',
+	                                                 valign='line_top')
+	                                    ],
+	                             orientation='horizontal',
+	                             backward=True,
+	                             min_index=0,
+	                             max_index=10))
+	    acc.add_widget(complex_)
+	    simple = AccordionItem(title='simple_tickline')
+	    simple.add_widget(Tickline(ticks=[Tick()]))
+	    acc.add_widget(simple)
+	    runTouchApp(acc)
+
 Customizations
 --------------
 
