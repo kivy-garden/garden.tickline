@@ -1,22 +1,160 @@
+'''
+Tickline
+========
+
+The :class:`Tickline` widget is designed to display a stream of measured data.
+
+For example, a ruler-like :class:`Tickline` can 
+display a tick every 10 pixels. A timeline-like :class:`Tickline` can display
+dates and hours. If you have some 2-dimensional data, you can also use 
+:class:`Tickline` to graph it against ticks demarcating some interval.
+
+What makes :class:`Tickline` amazing is the ability to zoom and pan, and 
+automatically adjust the ticks displayed in response to changing scale. 
+If my tickline has multiple ticks, the ticks that are too fine will not 
+be displayed. If I zoom in too much, I can always scroll it to see other parts 
+of the tickline.
+
+Usage
+-----
+
+A :class:`Tickline` by itself doesn't display anything other than perhaps
+a line along its direction. It needs to be given :class:`Tick`s to draw. The
+attribute :attr:`Tickline.ticks` contains a list of :class:`Tick`s that will
+be displayed. 
+
+Here is a simple example that will display ticks with integer labels::
+
+    Tickline(ticks=[Tick()])
+
+The power of :class:`Tickline` really comes through with multiple :class:`Tick`s
+though. The following is a :class:`Tickline` that displays ticks with intervals
+of 1, 1/5, and 1/10::
+
+    Tickline(ticks=[Tick(), Tick(scale_factor=5.), Tick=(scale_factor=10.)])
+    
+You may notice that the :class:`Tick`s all label themselves by their *own* 
+numbers, instead of, for example, the 1/5 tick labelling by 1/5 and the 1/10
+tick labelling by 1/10. The 1/5, 2/5, 3/5, ... or 1/10, 2/10, ... would be
+the *global indices* of the ticks. By default, however, the ticks are labelled
+by *local indices*. This can be changed by setting :attr:`Tick.label_global` 
+to True. 
+
+A setting of interest may be :attr:`Tick.offset`, which causes the :class:`Tick`
+to be draw at local indices ``..., offset - 2, offset - 1, offset, 
+offset + 1, offset + 2, ...``.
+
+Whether the tick*line* is displayed can be toggled with 
+:attr:`Tickline.draw_line`, and its position can be set via
+:attr:`Tickline.line_offset` and :attr:`Tickline.line_pos`. Other attributes
+like :attr:`Tickline.line_color`, :attr:`Tickline.line_width`, 
+and :attr:`Tickline.background_color` do what their names suggest to do.
+
+If the tick*line* is drawn, the settings :attr:`Tick.halign` and 
+:attr:`Tick.valign` can be used to specify where the tick is rendered. In short,
+if the line is vertical, then ``halign`` is used, and can be one of
+'left', 'right', 'line_left', 'line_right'. If the line is horizontal, then
+``valign`` is used, and can be one of 'top', 'bottom', 'line_top', 
+and 'line_bottom'. For more details go to their documentations.
+
+Other tick customizations include :attr:`Tick.tick_color`, 
+:attr:`Tick.tick_size`, :attr:`Tick.min_space`, and :attr:`Tick.min_label_space`.
+The former two warrants little explanation (except that ``tick_size`` is
+always given as a list ``[width, height]`` where ``width < height``, no matter
+what the orientation of the :class:`Tickline` is). ``min_space`` controls
+when a set of ticks are to be drawn. Specifically, if the space between 2 
+consecutive ticks fall below ``min_space``, then the ticks are not drawn.
+``min_label_space`` works similarly for the corresponding labels.
+
+The orientation of a :class:`Tickline` can be set to 'horizontal' or 'vertical'
+(default to 'vertical') and its direction can be changed through 
+:attr:`Tickline.backward`.
+
+If you'd like not to label a set of ticks, for example, like the milimeter ticks
+on a typical ruler, then use :class:`LabellessTick`. 
+
+If you'd like to draw ticks for only some numbers, use :class:`DataListTick`.
+
+To put it all together::
+
+    Tickline(ticks=[Tick(tick_size=[4, 20], offset=.5),
+                    Tick(scale_factor=5., label_global=True),
+                    LabellessTick(tick_size=[1, 4], scale_factor=25.),
+                    DataListTick(data=[-0.3, 1, 1.5, 2, 4, 8, 16, 23],
+                                 scale_factor=5.,
+                                 halign='line_right',
+                                 valign='line_top')
+                    ],
+             orientation='horizontal',
+             backward=True)
+            
+Here's a :class:`Tickline` with 4 ticks drawn; 
+the first set with interval of 1, the second, 1/5, the third, 1/25, and
+the final set has ticks at the local indices provided by the list (so in
+terms of global indices, the ticks are drawn at -0.3/5, 1/5, 1.5/5, etc).
+The first set of ticks are drawn at every half integer. The second set of
+ticks are labelled with global indices. The :class:`Tickline` is horizontal,
+and runs from right to left. The tick*line* is centered in the middle of the
+widget, and the :class:`DataListTick` sit on top of the line.
+
+In addition to the attributes introduced above, :attr:`Tickline.min_index`,
+:attr:`Tickline.max_index`, :attr:`Tickline.min_scale`, and 
+:attr:`Tickline.max_scale` can be used to limit the sections of the Tickline
+that can be shown, and how much can be zoomed in or out.
+
+Customizations
+--------------
+
+There are 4 recommend extension points with regard to :class:`Tick` and
+:class:`Tickline` in order of least to most change:
+:meth:`Tick.draw`, :meth:`Tick.tick_iter`, :meth:`Tick.display`, and 
+:meth:`Tickline.redraw_`. These 4 methods form the gist of redrawing operation.
+In simple terms, :meth:`Tickline.redraw_` calls :meth:`Tick.display` for each
+tick in :attr:`Tickline.ticks`. ``display`` then calls :meth:`Tick.tick_iter`
+to obtain an iterator of relevant information regarding the list of ticks
+that should be shown, and hands off each individual info to :meth:`Tick.draw`
+to compute the graphics. 
+
+A possible extension is to draw triangle ticks instead
+of rectangles. In this case, overriding :meth:`Tick.draw` is most appropriate.
+Another extension can be drawing a timeline, in which case 
+:meth:`Tick.tick_iter` may be overriden to produce information about  
+datetimes instead of plain global indices for ease of logic handling.
+
+:class:`Tick`'s underlying drawing utilizes Mesh to ensure smooth graphics,
+but this may not be appropriate for certain visuals. To change this behavior,
+overriding :meth:`Tick.display` can be appropriate. 
+
+Finally, if major changes to how :class:`Tickline` works are necessary,
+override :meth:`Tickline.redraw_`. However, for most cases, it is recommended
+to customize a version of *tick labeller*, which can be a subclass or
+a ducktype of :class:`TickLabeller`. This is an object that handles
+labelling and/or custom graphics for the tickline. See the class documentation
+of :class:`TickLabeller` for more details.
+
+Hack it!
+--------
+
+The technology behind :class:`Tickline` is actually quite versatile, and
+it's possible to use it to build seemingly unrelated things. For example,
+a selection wheel like in iOS has been created by subclassing it.
+'''
+
 from bisect import bisect_left, bisect
 from kivy.base import runTouchApp
 from kivy.clock import Clock
-from kivy.core.image import Image
 from kivy.core.text import Label as CoreLabel
 from kivy.effects.dampedscroll import DampedScrollEffect
-from kivy.event import EventDispatcher
 from kivy.graphics import InstructionGroup, Mesh
 from kivy.graphics.context_instructions import Color
 from kivy.graphics.vertex_instructions import Rectangle, Line
-from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.properties import ListProperty, NumericProperty, OptionProperty, \
-    DictProperty, ObjectProperty, BoundedNumericProperty, BooleanProperty, \
+    ObjectProperty, BoundedNumericProperty, BooleanProperty, \
     AliasProperty
 from kivy.uix.accordion import Accordion, AccordionItem
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
-from kivy.uix.label import Label
 from kivy.uix.stencilview import StencilView
 from kivy.uix.widget import Widget
 from kivy.vector import Vector
@@ -47,6 +185,10 @@ class TickLabeller(Widget):
     to :meth:`make_labels` --- it is entirely possible to label on demand
     in :meth:`register`. 
     
+    As a generic labeller, :class:`TickLabeller` only seeks to prevent 
+    overlapping labels. It still relies on the :class:`Tick`s to produce
+    the actual label texture through :meth:`Tick.get_label_texture`.
+    
     A class can inherit from this or just ducktype to be used similarly
     with :class:`Tickline` and :class:`Tick`.'''
     
@@ -75,7 +217,7 @@ class TickLabeller(Widget):
                     l_x = x - texture.width - tickline.tick_label_padding
                 pos = (l_x, tick_pos - texture.height / 2)
             else:
-                tick_pos, y = (tick_info[0] + tick_info[3] / 2,
+                tick_pos, y = (tick_info[0] + tick_info[2] / 2,
                                tick_info[1])
                 align = tick.valign
                 if align in ('top', 'line_bottom'):
@@ -85,10 +227,10 @@ class TickLabeller(Widget):
                 pos = (tick_pos - texture.width / 2, l_y)
             if (tick_pos, align) not in self.registrar or \
                 self.registrar[(tick_pos, align)][1] > tick.scale_factor:
-                self.registrar[(tick_pos, align)] = (texture, pos, 
+                self.registrar[(tick_pos, align)] = (texture, pos,
                                                      tick.scale_factor)
     def make_labels(self):
-        canvas = self.tickline.tickruler.canvas
+        canvas = self.tickline.canvas
         group_id = self.group_id
         canvas.remove_group(group_id)
         with canvas:
@@ -101,6 +243,16 @@ class TickLabeller(Widget):
         return self.__class__.__name__
     
 class CompositeLabeller(TickLabeller):
+    '''combines multiple labellers into one. 
+    
+    Initialize with an instance of :class:`Tickline` and a dictionary 
+    containing information regarding what labeller should handle what kind
+    of ticks. Specifically, the dict should be keyed by labeller *classes*,
+    and the values should be a list of subclasses of 
+    :class:`Tick` assigned to be handled by the corresponding labeller. 
+    For example, ``{TickLabeller: [Tick], OtherLabeller: [DataListTick]}``
+    would be a valid dict.
+    '''
     def __init__(self, tickline, labellers):
         self.tickline = tickline
         self.init_designater(labellers)
@@ -126,42 +278,45 @@ class CompositeLabeller(TickLabeller):
         for labeller in self.labellers:
             labeller.make_labels()
         
-Builder.load_string('''
-<Tickline>:
-    tickruler: tickruler
-    Widget:
-        id: tickruler
-''')
 class Tickline(StencilView):
-    def _get_scale_min(self, zoom, ticks):
-        return min(tick.min_space / tick.scale(zoom) for tick in ticks)
-    def _get_scale_max(self, zoom, ticks, max_pos):
-        return max(max_pos / tick.scale(zoom) for tick in ticks)        
+    '''See module documentation for details.'''
     #===========================================================================
-    # public attributes
+    # visual attributes
     #===========================================================================
-    ticks = ListProperty()    
-    '''a list of :class:`Tick` objects to draw'''
-    zoomable = BooleanProperty(True)
-    '''a toggle for whether this :class:`Tickline` can be zoomed in and out.'''
-    draw_line = BooleanProperty(True)
-    '''a toggle for whether the center line is drawn or not.'''
+    '''most of the following properties are in place for quick usage.
+    For more involved graphics customization, design a :class:`TickLabeller`.'''
+    
     background_color = ListProperty([0, 0, 0])
     '''color in RGB of the background.'''
+
     backward = BooleanProperty(False)
     '''By default, the Tickline runs left to right if :attr:`orientation`
     is 'horizontal' and bottom to top if it's 'vertical'. If :attr:`backward`
     is true, then this is reversed.'''
+
     def get_dir(self):
         return -1 if self.backward else 1
     def set_dir(self, val):
         self.backward = True if val <= 0 else False
     dir = AliasProperty(get_dir, set_dir, bind=['backward'])
+    '''gives -1 if :attr:`backward` is true, otherwise 1.'''
+    
     orientation = OptionProperty('vertical', options=['horizontal', 'vertical'])
+    '''orientation of the :class:`Tickline`. Can be either 'horizontal' or
+    'vertical'. Defaults to 'vertical'.'''
+
+    draw_line = BooleanProperty(True)
+    '''a toggle for whether the center line is drawn or not.'''
+
     line_color = ListProperty([1, 1, 1, 1])
+    '''color of the tick*line*.'''
+    
     line_width = NumericProperty(4.)
+    '''width of the tick*line*.'''
+    
     line_offset = NumericProperty(0)
-    '''how far the tickline should deviate from the center.'''
+    '''how far the tick*line* should deviate from the center.'''
+
     def get_line_pos(self):
         if self.is_vertical():
             return self.center_x + self.line_offset
@@ -172,17 +327,56 @@ class Tickline(StencilView):
             self.line_offset = val - self.center_x
         else:
             self.line_offset = val - self.center_y
-    line_pos = AliasProperty(get_line_pos, set_line_pos, bind=['orientation',
-                                                               'line_offset',
-                                                               'center_x',
-                                                               'center_y'])
+    line_pos = AliasProperty(get_line_pos, set_line_pos,
+                             bind=['orientation', 'line_offset',
+                                   'center_x', 'center_y'])
+    '''the absolute position of the tick*line* on screen, if :attr:`draw_line`
+    is True'''
+
+    tick_label_padding = NumericProperty(9)
+    '''the padding between a tick and its label.'''
+
+    labeller_cls = ObjectProperty(TickLabeller)
+    '''the class used to handle labelling. Defaults to :class:`TickLabeller`'''
+
+    labeller = ObjectProperty(None)
+    '''an instance of :attr:`labeller_cls` used for labelling and
+    custom graphics.'''
+
+    #===========================================================================
+    # touch
+    #===========================================================================
+    ticks = ListProperty()    
+    '''a list of :class:`Tick` objects to draw'''
+
+    zoomable = BooleanProperty(True)
+    '''a toggle for whether this :class:`Tickline` can be zoomed in and out.'''
+    
+    translation_touches = BoundedNumericProperty(1, min=1)
+    '''decides whether translation is triggered by a single touch 
+    or multiple touches.'''
+
+    drag_threshold = NumericProperty('20sp')
+    '''the threshold to determine whether a touch constitutes a scroll.'''
+    
+    scroll_effect_cls = ObjectProperty(DampedScrollEffect)
+
+    scroll_effect = ObjectProperty(None, allownone=True)
+    ''':attr:`scroll_effect`.value should always point toward :attr:`index_mid`.
+    '''
+
+    #===========================================================================
+    # other public attributes
+    #===========================================================================
     
     min_index = NumericProperty(-float('inf'))
-    '''The minimal value :attr:`global_index` can assume. Defaults to -inf,
+    '''The minimal value :attr:`index_mid` can assume. Defaults to -inf,
     meaning the absence of such a minimum.'''
+    
     max_index = NumericProperty(float('inf'))
-    '''The maximal value :attr:`global_index` can assume. Defaults to inf,
+    '''The maximal value :attr:`index_mid` can assume. Defaults to inf,
     meaning the absence of such a maximum.'''
+
     index_0 = NumericProperty(0) 
     '''gives the index, likely fractional, that corresponds to 
     ``self.x`` if :attr:`orientation` is 'vertical', or ``self.y``
@@ -216,6 +410,8 @@ class Tickline(StencilView):
             self.size[0] = val
     max_pos = AliasProperty(get_max_pos, set_max_pos, cache=True,
                             bind=['size', 'orientation'])
+    '''returns the length of the :class:`Tickline` widget along the direction
+    it extends.'''
     
     def get_pos0(self):
         return self.y if self.is_vertical() else self.x
@@ -228,36 +424,49 @@ class Tickline(StencilView):
                          bind=['size', 'x', 'y', 'orientation'])
     '''the coordinate of Tickline that's along the direction it extends.'''
     
-    scale_min = NumericProperty(0)
-    '''the parameter to be passed to the scatter tied to this Tickline, 
-    specifying the max that one can zoom out. If None, then one can
+    def get_scale_min(self, *args):
+        if self._scale_min is not None:
+            return self._scale_min
+        return self._get_scale_min()
+    def _get_scale_min(self, *args):
+        if not self.ticks:
+            return 0
+        return min(tick.min_space * tick.scale_factor
+                   for tick in self.ticks)
+    def set_scale_min(self, val):
+        self._scale_min = val
+    scale_min = AliasProperty(get_scale_min, set_scale_min,
+                              bind=['_scale_min', 'ticks'])
+    '''minimal bound on :attr:`scale`, 
+    specifying the max that one can zoom *out*. If None, then one can
     zoom out as long as the widest set of ticks has more than its 
     :attr:`~Tick.min_space`.'''
-    scale_max = NumericProperty(float('inf'))
-    '''the parameter to be passed to the scatter tied to this Tickline, 
-    specifying the max that one can zoom in. If None, then one can zoom in
+    
+
+    def get_scale_max(self, *args):
+        if self._scale_max is not None:
+            return self._scale_max
+        return self._get_scale_max()
+    def _get_scale_max(self, *args):
+        if not self.ticks:
+            return float('inf')
+        return max(self.max_pos * tick.scale_factor
+                   for tick in self.ticks)        
+    def set_scale_max(self, val):
+        self._scale_max = val
+    scale_max = AliasProperty(get_scale_max, set_scale_max,
+                              bind=['_scale_max', 'max_pos', 'scale', 'ticks'])
+    '''maximal bound on :attr:`scale`,
+    specifying the max that one can zoom *in*. If None, then one can zoom in
     as long as the narrowest set of ticks has spacing no greater than this
     Tickline's width (if it's horizontal) or height (if it's vertical).'''
-    tick_label_padding = NumericProperty(0)
-    '''the padding between a tick and its label.'''
-    labeller_cls = ObjectProperty(TickLabeller)
-    '''the class used to handle labelling.'''
-    labeller = ObjectProperty(None)
-    
+
     densest_tick = ObjectProperty(None)
     '''represents the smallest interval shown on screen.'''
     
     in_motion = BooleanProperty(False)
-    translation_touches = BoundedNumericProperty(1, min=1)
-    '''decides whether translation is triggered by a single touch 
-    or multiple touches.'''
-    drag_threshold = NumericProperty('20sp')
-    '''the threshold to determine whether a touch constitutes a scroll.'''
-    
-    #===========================================================================
-    # scatter attributes 
-    #===========================================================================
-    
+    '''gives False if and only if the :class:`Tickline` is moving.'''
+
     def get_scale(self):
         if self._versioned_scale is not None:
             scale = self._versioned_scale
@@ -271,46 +480,51 @@ class Tickline(StencilView):
         self.index_1 = self.index_0 + self.dir * self.max_pos / val
     scale = AliasProperty(get_scale, set_scale,
                           bind=['index_0', 'index_1', 'max_pos', 'dir'])
-    scroll_effect_cls = ObjectProperty(DampedScrollEffect)
-    scroll_effect = ObjectProperty(None, allownone=True)
-    ''':attr:`scroll_effect`.value should always point toward :attr:`index_mid`.
-    '''
+    '''the distance between 2 ticks of consecutive *global index*.'''
+    
+    redraw = ObjectProperty(None)
+    '''a trigger to redraw graphics. In most cases this is not necessary
+    to call publicly as it is already bound to relevant properties.
+    The actual redrawing is done by :meth:`redraw_`.'''
     #===========================================================================
-    # other private attributes
+    # private attributes
     #===========================================================================
-    tickruler = ObjectProperty(None)
+    
     scale_tolerances = ListProperty()
     '''essentially::
     
         sorted([(tick.scale_factor * tick.min_space, tick) for tick in self.ticks])
         
     This is used to determine :attr:`densest_tick`'''
+    
     line_instr = ObjectProperty(None)
     '''instruction for drawing the *line*.'''
+    
     line_color_instr = ObjectProperty(None)
     '''instruction for line color.'''
+    
     _versioned_scale = NumericProperty(None, allownone=True)
     '''(internal) used to suppress :attr:`scale` change during a translation.'''
-    
-    
+   
+    _scale_min = NumericProperty(None, allownone=True) 
+    _scale_max = NumericProperty(None, allownone=True)
     #===========================================================================
     # methods 
     #===========================================================================
     def __init__(self, *args, **kw):
+        self._trigger_calibrate = \
+                    Clock.create_trigger(self.calibrate_scroll_effect, -1)
+        self.redraw = _redraw_trigger = \
+                                Clock.create_trigger(self.redraw_, -1)
         super(Tickline, self).__init__(*args, **kw)
         self._touches = []
         self._last_touch_pos = {}
         self.scroll_effect = self.scroll_effect_cls()
-        self._trigger_calibrate = \
-                    Clock.create_trigger(self.calibrate_scroll_effect, -1)
         self.on_scroll_effect_cls()
-        self.redraw = _redraw_trigger = \
-                                Clock.create_trigger(self._redraw, -1)
         self.bind(index_0=_redraw_trigger,
                   index_1=_redraw_trigger,
                   pos=_redraw_trigger,
                   size=_redraw_trigger,
-                  tickruler=_redraw_trigger,
                   orientation=_redraw_trigger,
                   ticks=_redraw_trigger)
         self.bind(index_mid=self._trigger_calibrate)
@@ -319,9 +533,11 @@ class Tickline(StencilView):
         self.on_ticks()
         self._update_densest_tick()
         self.labeller = self.labeller_cls(self)
-    def update_motion(self, *args):
-        effect = self.scroll_effect
-        self.in_motion = effect.velocity or effect.is_manual
+
+    def on_scale(self, *args):
+        self._update_densest_tick()
+        self._update_effect_constants()
+        self.redraw()
     def on_backward(self, *args):
         if self.index_0 < self.index_1 and self.backward:
             self.index_0, self.index_1 = self.index_1, self.index_0
@@ -330,19 +546,16 @@ class Tickline(StencilView):
         for tick in self.ticks:
             tick.bind(scale_factor=self._update_tolerances,
                       min_space=self._update_tolerances)
-        if self.tickruler:
-            canvas = self.tickruler.canvas
-            canvas.clear()
-            canvas.add(self.background_instr)
-            if self.draw_line:
-                canvas.add(self.line_color_instr)
-                canvas.add(self.line_instr)
-            for tick in self.ticks:
-                canvas.add(tick.instr)
-    def _update_tolerances(self, *args):
-        self.scale_tolerances = sorted(
-                               [(tick.scale_factor * tick.min_space, tick) 
-                                for tick in self.ticks])
+        canvas = self.canvas
+        if not canvas:
+            return
+        canvas.clear()
+        canvas.add(self.background_instr)
+        if self.draw_line:
+            canvas.add(self.line_color_instr)
+            canvas.add(self.line_instr)
+        for tick in self.ticks:
+                canvas.add(tick.instr)           
     def on_scroll_effect_cls(self, *args):
         effect = self.scroll_effect = self.scroll_effect_cls(round_value=False)
         self._update_effect_constants()
@@ -350,26 +563,7 @@ class Tickline(StencilView):
         effect.bind(scroll=self._update_from_scroll)
         effect.bind(velocity=self.update_motion,
                     is_manual=self.update_motion)
-    def _update_effect_constants(self, *args):
-        if not self.scroll_effect:
-            return
-        scale = self.scale
-        effect = self.scroll_effect
-        effect.drag_threshold = self.drag_threshold / scale
-        effect.min_distance = .1 / scale
-        effect.min_velocity = .1 / scale
-        effect.min_overscroll = .5 / scale
-        return True
         
-    def translate_by(self, distance):
-        self._versioned_scale = self.scale
-        self.index_0 += distance
-        self.index_1 += distance
-    def _update_from_scroll(self, *args, **kw):
-        # possible dispatch loop here: will have to watch for it in the future
-        new_mid = self.scroll_effect.scroll
-        shift = new_mid - self.index_mid
-        self.translate_by(shift)
     def on_pos(self, *args):
         self.redraw()
         self._trigger_calibrate()
@@ -382,7 +576,21 @@ class Tickline(StencilView):
         try:
             self._trigger_calibrate()
         except AttributeError:
-            return
+            return       
+    def on_line_color(self, *args):
+        self.line_color_instr.rgba = self.line_color
+
+    def update_motion(self, *args):
+        effect = self.scroll_effect
+        self.in_motion = effect.velocity or effect.is_manual
+    
+        
+    def translate_by(self, distance):
+        self._versioned_scale = self.scale
+        self.index_0 += distance
+        self.index_1 += distance
+
+
     def calibrate_scroll_effect(self, *args, **kw):
         if not self.scroll_effect:
             return
@@ -396,7 +604,8 @@ class Tickline(StencilView):
         '''converts a position coordinate along the tickline direction to its
         index. If ``window`` is given as True, then the coordinate is assumed
         to be a window coordinate.'''
-        return self.index_0 + self.dir * float(pos - window * self.pos0) / self.scale 
+        return self.index_0 + \
+            self.dir * float(pos - window * self.pos0) / self.scale 
         
     def index2pos(self, index, i0=None, i1=None, i_mid=None):
         '''returns the position of a index (the global index, not a localized
@@ -445,30 +654,9 @@ class Tickline(StencilView):
         else:
             return (anchor.x + antianchor.x) / 2 - (1 - to_window) * self.pos0
     
-    def _midpoint_intercept(self, anchor, antianchor):       
-        if self.is_vertical():
-            return (anchor.y + antianchor.y) / 2
-        else:
-            return (anchor.x + antianchor.x) / 2
-            
-    def _extension_intercept(self, anchor, antianchor):
-        '''find the x or y intercept where the line made by :attr:`self.anchor`
-        and :attr:`self.antianchor` crosses our tickline.'''
-        if self.is_vertical():
-            x, y = anchor.x, anchor.y
-            a, b = antianchor.x, antianchor.y
-        else:
-            y, x = anchor.x, anchor.y
-            b, a = antianchor.x, antianchor.y
-            
-        w = self.line_pos
-        return (a * y - w * y + w * b - x * b) / (a - x)
-    
     def is_vertical(self):
         return self.orientation == 'vertical'
     def init_center_line_instruction(self):
-        if not self.tickruler:
-            return
         if not self.draw_line:
             self.line_color_instr = self.line_instr = None
             return
@@ -492,28 +680,9 @@ class Tickline(StencilView):
                   pos=_update_line_pts,
                   size=_update_line_pts,
                   draw_line=_update_line_pts)
-    def on_line_color(self, *args):
-        self.line_color_instr.rgba = self.line_color
-    def _update_line_pts(self, *args):
-        if not self.line_instr:
-            return
-        if not self.draw_line:
-            self.line_color_instr = self.line_instr = None
-            return
-        if self.is_vertical():
-            self.line_instr.points = [self.line_pos,
-                                      self.y,
-                                      self.line_pos,
-                                      self.top]
-        else:
-            self.line_instr.points = [self.x,
-                                      self.line_pos,
-                                      self.right,
-                                      self.line_pos]
+    
     def draw_center_line(self):
-        if not self.tickruler:
-            return
-        with self.tickruler.canvas:
+        with self.canvas:
             Color(**self.line_color)
             if self.is_vertical():
                 Line(points=[self.line_pos,
@@ -534,25 +703,61 @@ class Tickline(StencilView):
         instrg.add(Color(*self.background_color))
         instrg.add(Rectangle(pos=self.pos, size=self.size))
         update = self._update_background
-        self.bind(background_color=update, 
+        self.bind(background_color=update,
                   pos=update,
                   size=update)
+    def redraw_(self, *args):
+        self.labeller.re_init()
+        # draw ticks
+        for tick in self.ticks:
+            tick.display(self)
+        # update labels
+        self.labeller.make_labels()
+    #===========================================================================
+    # prive methods
+    #===========================================================================
+    def _update_tolerances(self, *args):
+        self.scale_tolerances = sorted(
+                               [(tick.scale_factor * tick.min_space, tick) 
+                                for tick in self.ticks])
+    
+    def _update_effect_constants(self, *args):
+        if not self.scroll_effect:
+            return
+        scale = self.scale
+        effect = self.scroll_effect
+        effect.drag_threshold = self.drag_threshold / scale
+        effect.min_distance = .1 / scale
+        effect.min_velocity = .1 / scale
+        effect.min_overscroll = .5 / scale
+        return True
+    def _update_from_scroll(self, *args, **kw):
+        # possible dispatch loop here: will have to watch for it in the future
+        new_mid = self.scroll_effect.scroll
+        shift = new_mid - self.index_mid
+        self.translate_by(shift)
+
+    def _update_line_pts(self, *args):
+        if not self.line_instr:
+            return
+        if not self.draw_line:
+            self.line_color_instr = self.line_instr = None
+            return
+        if self.is_vertical():
+            self.line_instr.points = [self.line_pos,
+                                      self.y,
+                                      self.line_pos,
+                                      self.top]
+        else:
+            self.line_instr.points = [self.x,
+                                      self.line_pos,
+                                      self.right,
+                                      self.line_pos]
     def _update_background(self, *args):
         instrg = self.background_instr
         instrg.clear()
         instrg.add(Color(*self.background_color))
         instrg.add(Rectangle(pos=self.pos, size=self.size))
-    def _redraw(self, *args):
-        if not self.tickruler:
-            return
-        self.labeller.re_init()
-
-        # draw ticks
-        for tick in self.ticks:
-            tick.display(self)
-        
-        # update labels
-        self.labeller.make_labels()
     def _update_densest_tick(self, *args):
         tol = self.scale_tolerances
         scale = self.scale
@@ -564,11 +769,10 @@ class Tickline(StencilView):
             self.densest_tick = tol[i - 1][1]
         except IndexError:
             self.densest_tick = None
-    def on_scale(self, *args):
-        self._update_densest_tick()
-        self._update_effect_constants()
-        self.redraw()
-       
+            
+    #===========================================================================
+    # touch handling
+    #===========================================================================
     def on_touch_down(self, touch):
         x, y = touch.x, touch.y
         
@@ -649,7 +853,12 @@ class Tickline(StencilView):
         scale_factor = ((antianchor - anchor).length() / 
                         (pantianchor - anchor).length())
         new_scale = scale_factor * scale
-
+       
+        if new_scale < self.scale_min:
+            new_scale = self.scale_min
+        elif new_scale > self.scale_max:
+            new_scale = self.scale_max
+            
         changed = inter != old_inter or new_scale != scale
 
         self.index_0 = index_0 = inter_index - self.dir * inter / new_scale
@@ -677,17 +886,45 @@ class Tickline(StencilView):
             
         if self.collide_point(x, y):
             return True
+        
 class Tick(Widget): 
     '''an object that holds information about a set of ticks to be drawn
-    into :class:`Tickline`.'''
+    into a :class:`Tickline`.
+    
+    .. note::
+        The graphics handling here is based on Mesh to enable quick drawing.
+        for more complex_ graphics this may be overriden in a subclass,
+        or use a custom TickLabeller to handle visuals.'''
+    
+    #===========================================================================
+    # public attributes 
+    #===========================================================================
     tick_size = ListProperty([dp(2), dp(8)])
     '''the first number always denotes the width (the shorter length).'''    
+    
     halign = OptionProperty('left', options=['left', 'right',
                                               'line_left', 'line_right'])    
+    '''if the :class:`Tickline` that draws this :class:`Tick` is
+    vertical, then this attribute specifies where horizontally the 
+    ticks are to be drawn. The options are "left", "right", "line_left",
+    and "line_right". "line_left" draws the ticks on the left side of
+    the tick*line*, while "line_right" draws the ticks on the right side of it.
+    "left" and "right" respectively draws ticks on the left and right of
+    the :class:`Tickline` widget.'''
+    
     valign = OptionProperty('bottom', options=['top', 'bottom',
                                                'line_top', 'line_bottom'])
+    '''if the :class:`Tickline` that draws this :class:`Tick` is
+    horizontal, then this attribute specifies where vertically the 
+    ticks are to be drawn. The options are "top", "bottom", "line_top",
+    and "line_bottom". "line_top" draws the ticks on the top of
+    the tick*line*, while "line_bottom" draws the ticks on the bottom of it.
+    "top" and "bottom" respectively draws ticks on the top and bottom of
+    the :class:`Tickline` widget.'''
+    
     tick_color = ListProperty([1, 1, 1, 1])
-    '''color of ticks drawn'''
+    '''color of ticks drawn, specified as an rgba value.'''
+    
     min_space = NumericProperty('10sp')
     '''if the spacing between consecutive ticks fall below this attribute,
     then this Tick will not be displayed.'''
@@ -701,14 +938,24 @@ class Tick(Widget):
     :attr:`Tick.scale_factor` / :attr:`Tickline.scale`.'''
     
     offset = NumericProperty(0)
-    '''Tick index is normally an integer, and a Tick index of ``idx`` is
-    equivalent to a :attr:`Tickline.global_index` of ``idx / `` 
-    :attr:`Tick.scale_factor`. When the :attr:`offset` is nonzero, however,
-    the Tick index will be ``idx + offset``, corresponding to a global index
-    of  ``(idx + offset)/ `` :attr:`Tick.scale_factor`. 
+    '''causes :class:`Tick` to be draw at local indices 
+    ``..., offset - 2, offset - 1, offset, offset + 1, offset + 2, ...``.
     
-    This is for example used to display day ticks in a timezone aware manner.
+    This can be, for example, used to display day ticks in a 
+    timezone aware manner.
     '''
+    
+    label_global = BooleanProperty(False)
+    '''If True, the default labelling of this Tick is of the global index.
+    Otherwise, the default labelling is the local (integer) index. The 
+    "default labelling" here refers to the usage of :class:`TickLabeller`
+    to handle labelling. Custom tick labellers may ignore this setting.
+    
+    :attr:`label_global` defaults to False.'''
+    
+    #===========================================================================
+    # private attributes
+    #===========================================================================
     
     _mesh = ObjectProperty(None)
     '''The Mesh instruction that is used to draw ticks.'''
@@ -724,8 +971,10 @@ class Tick(Widget):
         instr.add(self._color)
         instr.add(self._mesh)
         super(Tick, self).__init__(*args, **kw)
+
     def on_tick_color(self, *args):
         self._color.rgba = self.tick_color
+
     def scale(self, sc):
         '''returns the spacing between ticks, given the global scale of 
         a :class:`Tickline`.
@@ -754,17 +1003,19 @@ class Tick(Widget):
     
     def get_label_texture(self, index, **kw):
         '''
-        Return a Label *texture* for a tick given its ordinal position. 
+        Return a label *texture* for a tick given its ordinal position. 
         Return None if there shouldn't be a label at ``index``. This method
-        is optimized for quickly drawing labels on screen.
+        should optimized for quickly drawing labels on screen.
         
         :param index: the ordinal number of a tick from the 0th tick, 
-            which is the tick that would have :attr:`Tickline.global_index` 0
+            which is the tick that would have global index 0
             if it were the first visible tick.
         :param kw: keyword args passed to Label
         '''        
         kw['font_size'] = self.tick_size[1] * 2
-        label = CoreLabel(text=str(index), **kw)
+        label = CoreLabel(
+            text=str(index / (self.label_global and self.scale_factor or 1)),
+            **kw)
         label.refresh()
         return label.texture
     
@@ -782,28 +1033,6 @@ class Tick(Widget):
         
         return globalize(localize(tickline.index_1) - tickline.backward)
     
-    def _index_condition(self, tickline, extended=False):
-        '''If ``extended``, 
-        returns a boolean functional that returns True iff the input is a
-        localized tick index within the range displayable on screen, or just
-        one above or below.
-        
-        Otherwise, the returned functional returns True iff the input is 
-        strictly on screen'''
-        
-        if extended:
-            index_0 = self.extended_index_0(tickline)
-            index_1 = self.extended_index_1(tickline)        
-        else:
-            index_0 = tickline.index_0
-            index_1 = tickline.index_1        
-        localize = self.localize
-        index_0 = localize(index_0)
-        index_1 = localize(index_1)
-        if tickline.backward:
-            return lambda idx: index_1 <= idx <= index_0
-        else:
-            return lambda idx: index_0 <= idx <= index_1        
         
     def tick_iter(self, tickline):
         '''generates tick information for graphing and labeling in an iterator.
@@ -817,6 +1046,7 @@ class Tick(Widget):
             include ticks just out of screen, but needs to be drawn partially.
         '''
         return self.tick_pos_index_iter(tickline)
+    
     def tick_pos_index_iter(self, tl):
         '''given the parent :class:`Tickline` of this Tick, return an iterator
         of the positions and (localized) indices that correspond to ticks
@@ -836,14 +1066,10 @@ class Tick(Widget):
             tick_pos += tick_sc
             tick_index += tl.dir    
         raise StopIteration
+    
     def display(self, tickline):
         '''main method for displaying Ticks. This is called after every
         scatter transform. Uses :attr:`draw` to handle actual drawing.
-        
-        :param tickline: a :class:`Tickline` instance that is guaranteed
-            to have updated its :attr:`~Tickline.global_index`,
-            :attr:`~Tickline._tick_offset`, and :attr:`~Tickline.scale`
-            before calling this method.
         '''
         mesh = self._mesh
         self._vertices = []
@@ -852,48 +1078,22 @@ class Tick(Widget):
         indices = list(range(len(self._vertices) // 4))
         mesh.vertices = self._vertices  
         mesh.indices = indices
+        
     def draw(self, tickline, tick_info):
         '''Given information about a tick, present in on screen. May be 
         overriden to provide customized graphical representations, for 
         example, to graph a set of points.
         Uses :attr:`Tickline.labeller` to handle labelling.
         
-        :param tickline: a :class:`Tickline` instance that is guaranteed
-            to have updated its :attr:`~Tickline.global_index`,
-            :attr:`~Tickline._tick_offset`, and :attr:`~Tickline.scale`
-            before calling this method.
+        :param tickline: a :class:`Tickline` instance.
         :param tick_info: an object holding information about the tick to be
             drawn. By default, it's a pair holding the position and the index
-            of the tick. Should be overriden to customize graphics.
+            of the tick. Should be overriden as necessary. 
         '''        
         tick_pos, tick_index = tick_info
         tick_rect = self.draw_tick(tickline, tick_pos)
         tickline.labeller.register(self, tick_index, tick_rect)
         
-    def _get_index_n_pos_n_scale(self, tickline, extended=False):    
-        ''' utility function for getting the first tick index and position
-         at the bottom of the screen, along with the localized scale of the Tick.
-         
-         If ``extended``, gives index and position for a tick just below the 
-         screen, as determined by :attr:`Tickline.densest_tick`.
-         
-         :param tickline: a :class:`Tickline` instance, usually the one this
-             Tick draws on.
-         :param extended: flag for giving tick information for just below
-             the display area. Defaults to False
-         '''
-        tick_sc = self.scale(tickline.scale)
-        if extended:
-            index_0 = self.extended_index_0(tickline)
-        else:
-            index_0 = tickline.index_0 
-        tick_index_0 = index_0 * self.scale_factor
-        trunc = floor if tickline.backward else ceil
-        tick_index = trunc(tick_index_0 - tickline.dir * self.offset) + \
-                        tickline.dir * self.offset
-        tick_pos = (self.globalize(tick_index) - tickline.index_0) * \
-                    tickline.scale * tickline.dir
-        return tick_index, tick_pos, tick_sc
     
     def globalize(self, tick_index):
         '''convert a index of this Tick to the global index used in the
@@ -918,6 +1118,13 @@ class Tick(Widget):
                 x = tickline.right - th
             y = tick_pos - tw / 2
             height, width = tw, th
+            if not return_only:
+                self._vertices.extend([x, y, 0, 0,
+                                       x, y + height, 0, 0,
+                                       x + width, y + height, 0, 0,
+                                       x + width, y, 0, 0,
+                                       x, y, 0, 0,
+                                       x, y + height, 0, 0])
         else:
             valign = self.valign
             if valign == 'top':
@@ -930,28 +1137,84 @@ class Tick(Widget):
                 y = tickline.y
             x = tick_pos - tw / 2
             width, height = tw, th
-        if not return_only:
-            self._vertices.extend([x, y, 0, 0,
-                                   x, y + height, 0, 0,
-                                   x + width, y + height, 0, 0,
-                                   x + width, y, 0, 0,
-                                   x, y, 0, 0,
-                                   x, y + height, 0, 0])
+            if not return_only:
+                self._vertices.extend([x, y, 0, 0,
+                                       x + width, y, 0, 0,
+                                       x + width, y + height, 0, 0,
+                                       x, y + height, 0, 0,
+                                       x, y, 0, 0,
+                                       x + width, y, 0, 0,])
         return (x, y, width, height)
+    #===========================================================================
+    # private methods
+    #===========================================================================
+    def _get_index_n_pos_n_scale(self, tickline, extended=False):    
+        ''' utility function for getting the first tick index and position
+         at the bottom of the screen, along with the localized scale of the Tick.
+         
+         If ``extended``, gives index and position for a tick just below the 
+         screen, as determined by :attr:`Tickline.densest_tick`.
+         
+         :param tickline: a :class:`Tickline` instance, usually the one this
+             Tick draws on.
+         :param extended: flag for giving tick information for just below
+             the display area. Defaults to False
+         '''
+        tick_sc = self.scale(tickline.scale)
+        if extended:
+            index_0 = self.extended_index_0(tickline)
+        else:
+            index_0 = tickline.index_0 
+        tick_index_0 = index_0 * self.scale_factor
+        trunc = floor if tickline.backward else ceil
+        tick_index = trunc(tick_index_0 - tickline.dir * self.offset) + \
+                        tickline.dir * self.offset
+        tick_pos = (self.globalize(tick_index) - tickline.index_0) * \
+                    tickline.scale * tickline.dir
+        return tick_index, tick_pos, tick_sc
+    def _index_condition(self, tickline, extended=False):
+        '''If ``extended``, 
+        returns a boolean functional that returns True iff the input is a
+        localized tick index within the range displayable on screen, or just
+        one above or below.
+        
+        Otherwise, the returned functional returns True iff the input is 
+        strictly on screen'''
+        
+        if extended:
+            index_0 = self.extended_index_0(tickline)
+            index_1 = self.extended_index_1(tickline)        
+        else:
+            index_0 = tickline.index_0
+            index_1 = tickline.index_1        
+        localize = self.localize
+        index_0 = localize(index_0)
+        index_1 = localize(index_1)
+        if tickline.backward:
+            return lambda idx: index_1 <= idx <= index_0
+        else:
+            return lambda idx: index_0 <= idx <= index_1        
     
 class LabellessTick(Tick):
+    '''same thing as :class:`Tick`, except no labels. Commonly used as
+    the finest set of ticks.'''
+
     def get_label_texture(self, *args, **kw):
         return None
     
-Builder.load_string('''
-<DataListTick>:
-    halign: 'line_right'
-''')
 class DataListTick(Tick):
-    '''takes a sorted list of tick indices and displays ticks at those marks.'''
+    '''takes a sorted list of tick indices and displays ticks at those marks.
+    
+    Note that because likely the tick indices will not be at regular intervals,
+    :attr:`min_label_space` is set to 0 by default. Adjust it to your own 
+    liking.'''
+
     data = ListProperty([])
-    '''assumed to be sorted least to greatest'''
+    '''assumed to be sorted least to greatest; otherwise tick drawing
+    might not work'''
     min_label_space = NumericProperty(0)
+    halign = OptionProperty('line_right', options=Tick.halign.options)
+    
     def tick_pos_index_iter(self, tl):
         index_0 = self.localize(self.extended_index_0(tl))
         index_1 = self.localize(self.extended_index_1(tl))
@@ -975,22 +1238,25 @@ class DataListTick(Tick):
     
 if __name__ == '__main__':
     acc = Accordion(orientation='vertical')
-    item = AccordionItem(title='hello')
-    item.add_widget(Tickline(ticks=[Tick(tick_size=[4, 20], offset=.5),
-                                    Tick(scale_factor=5.),
+    complex_ = AccordionItem(title='complex_tickline')
+    complex_.add_widget(Tickline(ticks=[Tick(tick_size=[4, 20], offset=.5),
+                                    Tick(scale_factor=5., label_global=True),
                                     LabellessTick(tick_size=[1, 4],
                                          scale_factor=25.),
                                     DataListTick(data=[-0.3, 1, 1.5,
                                                        2, 4, 8, 16, 23],
                                                  scale_factor=5.,
-                                                 halign='line_right')
+                                                 halign='line_right',
+                                                 valign='line_top')
                                     ],
-                             orientation='vertical',
-                             backward=False,
+                             orientation='horizontal',
+                             backward=True,
                              min_index=0,
                              max_index=10))
-    acc.add_widget(item)
+    acc.add_widget(complex_)
+    simple = AccordionItem(title='simple_tickline')
+    simple.add_widget(Tickline(ticks=[Tick()]))
+    acc.add_widget(simple)
     b = BoxLayout(padding=[10, 10, 10, 10], orientation='vertical')
     b.add_widget(acc)
-    b.add_widget(Button(text='hello'))
     runTouchApp(b)
