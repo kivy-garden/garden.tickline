@@ -253,6 +253,21 @@ class CompositeLabeller(TickLabeller):
     :class:`Tick` assigned to be handled by the corresponding labeller. 
     For example, ``{TickLabeller: [Tick], OtherLabeller: [DataListTick]}``
     would be a valid dict.
+    
+    .. note::
+        The labellers will on handle ticks of *exactly* those types 
+        specified, i.e. NOT their subtypes as well.
+    
+    In addition, the last element of each list may be a dict of keyword
+    arguments to be passed to the corresponding tick labeller. For example::
+    
+        CompositeLabeller(some_tickline, 
+                        {TickLabeller: [Tick], 
+                         TimeLabeller: [TimeTick, {'date_halign': 'right'}]
+                         })
+                         
+    would instantiate the ``TimeLabeller`` as 
+    ``TimeLabeller(some_tickline, date_halign='right')``.
     '''
     def __init__(self, tickline, labellers):
         self.tickline = tickline
@@ -266,7 +281,11 @@ class CompositeLabeller(TickLabeller):
         self.designater = {}
         self.labellers = []
         for labeller_cls, tick_types in labellers.items():
-            labeller = labeller_cls(self.tickline)
+            if isinstance(tick_types[-1], dict):
+                labeller = labeller_cls(self.tickline, **tick_types[-1])
+                tick_types.pop()
+            else:
+                labeller = labeller_cls(self.tickline)
             self.labellers.append(labeller)
             for tp in tick_types:
                 self.designater[tp] = labeller
