@@ -159,6 +159,7 @@ from kivy.uix.stencilview import StencilView
 from kivy.uix.widget import Widget
 from kivy.vector import Vector
 from math import ceil, floor
+from kivy.properties import DictProperty
 
 class TickLabeller(Widget):
     '''handles labelling and/or custom graphics for a :class:`Tickline`. 
@@ -339,6 +340,10 @@ class Tickline(StencilView):
     labeller_cls = ObjectProperty(TickLabeller)
     '''the class used to handle labelling. Defaults to :class:`TickLabeller`'''
 
+    labeller_args = DictProperty()
+    '''a dictionary of keyword arguments to be passed into the
+    :attr:`labeller_cls` construtor.'''
+    
     labeller = ObjectProperty(None)
     '''an instance of :attr:`labeller_cls` used for labelling and
     custom graphics.'''
@@ -532,15 +537,17 @@ class Tickline(StencilView):
         self.init_background_instruction()
         self.on_ticks()
         self._update_densest_tick()
-        self.labeller = self.labeller_cls(self)
+        self.labeller = self.labeller_cls(self, **self.labeller_args)
 
     def on_scale(self, *args):
         self._update_densest_tick()
         self._update_effect_constants()
         self.redraw()
+        
     def on_backward(self, *args):
         if self.index_0 < self.index_1 and self.backward:
             self.index_0, self.index_1 = self.index_1, self.index_0
+            
     def on_ticks(self, *args):
         self._update_tolerances()
         for tick in self.ticks:
@@ -556,6 +563,13 @@ class Tickline(StencilView):
             canvas.add(self.line_instr)
         for tick in self.ticks:
                 canvas.add(tick.instr)           
+    
+    def on_labeller_cls(self, *args):        
+        self.labeller = self.labeller_cls(self, **self.labeller_args)
+        
+    def on_labeller_args(self, *args):        
+        self.labeller = self.labeller_cls(self, **self.labeller_args)
+        
     def on_scroll_effect_cls(self, *args):
         effect = self.scroll_effect = self.scroll_effect_cls(round_value=False)
         self._update_effect_constants()
@@ -567,16 +581,19 @@ class Tickline(StencilView):
     def on_pos(self, *args):
         self.redraw()
         self._trigger_calibrate()
+        
     def on_max_index(self, *args):
         try:
             self._trigger_calibrate()
         except AttributeError:
             return
+        
     def on_min_index(self, *args):
         try:
             self._trigger_calibrate()
         except AttributeError:
             return       
+        
     def on_line_color(self, *args):
         self.line_color_instr.rgba = self.line_color
 
