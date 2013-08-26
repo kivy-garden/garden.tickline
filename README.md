@@ -153,7 +153,10 @@ Finally, if major changes to how `Tickline` works are necessary,
 override `Tickline.redraw_`. However, for most cases, it is recommended
 to customize a version of *tick labeller*, which can be a subclass or
 a ducktype of `TickLabeller`. This is an object that handles
-labelling and/or custom graphics for the tickline. See the class documentation
+labelling and/or custom graphics for the tickline. The tick labeller can
+be specified by passing a class to `Tickline.labeller_cls`; any
+initialization keyword arguments should be passed as a dict to
+`Tickline.labeller_args`. See the class documentation
 of `TickLabeller` for more details.
 
 Hack it!

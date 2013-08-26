@@ -129,7 +129,10 @@ Finally, if major changes to how :class:`Tickline` works are necessary,
 override :meth:`Tickline.redraw_`. However, for most cases, it is recommended
 to customize a version of *tick labeller*, which can be a subclass or
 a ducktype of :class:`TickLabeller`. This is an object that handles
-labelling and/or custom graphics for the tickline. See the class documentation
+labelling and/or custom graphics for the tickline. The tick labeller can
+be specified by passing a class to :attr:`Tickline.labeller_cls`; any
+initialization keyword arguments should be passed as a dict to
+:attr:`Tickline.labeller_args`. See the class documentation
 of :class:`TickLabeller` for more details.
 
 Hack it!
