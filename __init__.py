@@ -720,23 +720,6 @@ class Tickline(StencilView):
                   size=_update_line_pts,
                   draw_line=_update_line_pts)
     
-    def draw_center_line(self):
-        with self.canvas:
-            Color(**self.line_color)
-            if self.is_vertical():
-                Line(points=[self.line_pos,
-                             self.y,
-                             self.line_pos,
-                             self.top],
-                     width=self.line_width,
-                     cap='none')
-            else:
-                Line(points=[self.x,
-                             self.line_pos,
-                             self.right,
-                             self.line_pos],
-                     width=self.line_width,
-                     cap='none')
     def init_background_instruction(self, *args):
         self.background_instr = instrg = InstructionGroup()
         instrg.add(Color(*self.background_color))
