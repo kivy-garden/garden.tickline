@@ -584,7 +584,7 @@ class Tickline(StencilView):
             canvas.add(self.line_color_instr)
             canvas.add(self.line_instr)
         for tick in self.ticks:
-                canvas.add(tick.instr)           
+            canvas.add(tick.instr)           
     
     def on_labeller_cls(self, *args):        
         self.labeller = self.labeller_cls(self, **self.labeller_args)
