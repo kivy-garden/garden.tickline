@@ -55,20 +55,6 @@ If the tick*line* is drawn, the settings :attr:`Tick.halign` and
 if the line is vertical, then ``halign`` is used, and can be one of
 'left', 'right', 'line_left', 'line_right'. If the line is horizontal, then
 ``valign`` is used, and can be one of 'top', 'bottom', 'line_top', 
-and 'line_bottom'. For more details go to their documentations.
-
-Other tick customizations include :attr:`Tick.tick_color`, 
-:attr:`Tick.tick_size`, :attr:`Tick.min_space`, and :attr:`Tick.min_label_space`.
-The former two warrants little explanation (except that ``tick_size`` is
-always given as a list ``[width, height]`` where ``width < height``, no matter
-what the orientation of the :class:`Tickline` is). ``min_space`` controls
-when a set of ticks are to be drawn. Specifically, if the space between 2 
-consecutive ticks fall below ``min_space``, then the ticks are not drawn.
-``min_label_space`` works similarly for the corresponding labels.
-
-The orientation of a :class:`Tickline` can be set to 'horizontal' or 'vertical'
-(default to 'vertical') and its direction can be changed through 
-:attr:`Tickline.backward`.
 
 If you'd like not to label a set of ticks, for example, like the milimeter ticks
 on a typical ruler, then use :class:`LabellessTick`. 
@@ -144,7 +130,6 @@ a selection wheel like in iOS has been created by subclassing it.
 '''
 
 from bisect import bisect_left, bisect
-from kivy.base import runTouchApp
 from kivy.clock import Clock
 from kivy.core.text import Label as CoreLabel
 from kivy.effects.dampedscroll import DampedScrollEffect
@@ -154,15 +139,13 @@ from kivy.graphics.vertex_instructions import Rectangle, Line
 from kivy.metrics import dp, sp
 from kivy.properties import ListProperty, NumericProperty, OptionProperty, \
     ObjectProperty, BoundedNumericProperty, BooleanProperty, \
-    AliasProperty
-from kivy.uix.accordion import Accordion, AccordionItem
+    AliasProperty, DictProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.stencilview import StencilView
 from kivy.uix.widget import Widget
 from kivy.vector import Vector
 from math import ceil, floor
-from kivy.properties import DictProperty
 
 class TickLabeller(Widget):
     '''handles labelling and/or custom graphics for a :class:`Tickline`. 
@@ -1259,6 +1242,8 @@ class DataListTick(Tick):
         
     
 if __name__ == '__main__':
+    from kivy.base import runTouchApp
+    from kivy.uix.accordion import Accordion, AccordionItem
     acc = Accordion(orientation='vertical')
     complex_ = AccordionItem(title='complex_tickline')
     complex_.add_widget(Tickline(ticks=[Tick(tick_size=[4, 20], offset=.5),

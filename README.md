@@ -104,6 +104,10 @@ that can be shown, and how much can be zoomed in or out.
 Here is a working example involving most of the discussion above
 
 	if __name__ == '__main__':
+	    from kivy.base import runTouchApp
+	    from kivy.uix.accordion import Accordion, AccordionItem
+	    from kivy.garden.tickline import Tickline
+	    
 	    acc = Accordion(orientation='vertical')
 	    complex_ = AccordionItem(title='complex_tickline')
 	    complex_.add_widget(Tickline(ticks=[Tick(tick_size=[4, 20], offset=.5),
@@ -124,7 +128,9 @@ Here is a working example involving most of the discussion above
 	    simple = AccordionItem(title='simple_tickline')
 	    simple.add_widget(Tickline(ticks=[Tick()]))
 	    acc.add_widget(simple)
-	    runTouchApp(acc)
+	    b = BoxLayout(padding=[10, 10, 10, 10], orientation='vertical')
+	    b.add_widget(acc)
+	    runTouchApp(b)
 
 Customizations
 --------------
