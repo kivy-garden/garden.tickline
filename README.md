@@ -165,6 +165,19 @@ initialization keyword arguments should be passed as a dict to
 `Tickline.labeller_args`. See the class documentation
 of `TickLabeller` for more details.
 
+Graphics
+========
+
+.. versionchanged:: 0.1.1
+
+    A custom background image maybe inserted as BorderImage by giving
+    :attr:`Tickline.background_image` the path to the image.
+    :attr:`Tickling.border` adjusts the borders parameter to the BorderImage.
+    
+    By default, there's no background image, but a Rectangle with 
+    :attr:`Tickline.background_color` covers the background. This can be
+    turned off via :attr:`Tickline.cover_background`.
+    
 Hack it!
 --------
 

@@ -91,7 +91,7 @@ that can be shown, and how much can be zoomed in or out.
 Customizations
 --------------
 
-There are 4 recommend extension points with regard to :class:`Tick` and
+There are 4 recommended extension points with regard to :class:`Tick` and
 :class:`Tickline` in order of least to most change:
 :meth:`Tick.draw`, :meth:`Tick.tick_iter`, :meth:`Tick.display`, and 
 :meth:`Tickline.redraw_`. These 4 methods form the gist of redrawing operation.
@@ -121,6 +121,19 @@ initialization keyword arguments should be passed as a dict to
 :attr:`Tickline.labeller_args`. See the class documentation
 of :class:`TickLabeller` for more details.
 
+Graphics
+========
+
+.. versionchanged:: 0.1.1
+
+    A custom background image maybe inserted as BorderImage by giving
+    :attr:`Tickline.background_image` the path to the image.
+    :attr:`Tickling.border` adjusts the borders parameter to the BorderImage.
+    
+    By default, there's no background image, but a Rectangle with 
+    :attr:`Tickline.background_color` covers the background. This can be
+    turned off via :attr:`Tickline.cover_background`.
+
 Hack it!
 --------
 
@@ -128,6 +141,8 @@ The technology behind :class:`Tickline` is actually quite versatile, and
 it's possible to use it to build seemingly unrelated things. For example,
 a selection wheel like in iOS has been created by subclassing it.
 '''
+
+__version__ = '0.1.1'
 
 from bisect import bisect_left, bisect
 from kivy.clock import Clock
@@ -138,14 +153,15 @@ from kivy.graphics.context_instructions import Color
 from kivy.graphics.vertex_instructions import Rectangle, Line
 from kivy.metrics import dp, sp
 from kivy.properties import ListProperty, NumericProperty, OptionProperty, \
-    ObjectProperty, BoundedNumericProperty, BooleanProperty, \
-    AliasProperty, DictProperty
+    ObjectProperty, BoundedNumericProperty, BooleanProperty, AliasProperty, \
+    DictProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.stencilview import StencilView
 from kivy.uix.widget import Widget
 from kivy.vector import Vector
 from math import ceil, floor
+from kivy.graphics.vertex_instructions import BorderImage
 
 class TickLabeller(Widget):
     '''handles labelling and/or custom graphics for a :class:`Tickline`. 
@@ -295,6 +311,13 @@ class Tickline(StencilView):
     background_color = ListProperty([0, 0, 0])
     '''color in RGB of the background.'''
 
+    cover_background = BooleanProperty(True)
+    '''controls whether to draw a Rectangle covering the background,
+    underneath :attr:`background_image`, if any.
+    
+    .. versionadded:: 0.1.1
+    '''
+    
     backward = BooleanProperty(False)
     '''By default, the Tickline runs left to right if :attr:`orientation`
     is 'horizontal' and bottom to top if it's 'vertical'. If :attr:`backward`
@@ -353,6 +376,18 @@ class Tickline(StencilView):
     '''an instance of :attr:`labeller_cls` used for labelling and
     custom graphics.'''
 
+    background_image = StringProperty(None, allownone=True)
+    '''background image to have below all graphics renderings. This is
+    rendered as a BorderImage.,
+    
+    .. versionadded:: 0.1.1
+    '''
+    
+    border = ListProperty([16, 16, 16, 16])
+    '''specifies the borders of the background image to feed into BorderImage.
+    
+    .. versionadded:: 0.1.1
+    '''
     #===========================================================================
     # touch
     #===========================================================================
@@ -706,11 +741,16 @@ class Tickline(StencilView):
     def init_background_instruction(self, *args):
         self.background_instr = instrg = InstructionGroup()
         instrg.add(Color(*self.background_color))
-        instrg.add(Rectangle(pos=self.pos, size=self.size))
+        if self.cover_background:
+            instrg.add(Rectangle(pos=self.pos, size=self.size))
+        if self.background_image is not None:
+            instrg.add(BorderImage(source=self.background_image,
+                                   size=self.size,
+                                   pos=self.pos,
+                                   border=self.border))
         update = self._update_background
-        self.bind(background_color=update,
-                  pos=update,
-                  size=update)
+        self.bind(background_color=update, pos=update, size=update,
+                  background_image=update)
     def redraw_(self, *args):
         self.labeller.re_init()
         # draw ticks
@@ -762,7 +802,13 @@ class Tickline(StencilView):
         instrg = self.background_instr
         instrg.clear()
         instrg.add(Color(*self.background_color))
-        instrg.add(Rectangle(pos=self.pos, size=self.size))
+        if self.cover_background:
+            instrg.add(Rectangle(pos=self.pos, size=self.size))
+        if self.background_image is not None:
+            instrg.add(BorderImage(source=self.background_image,
+                                   size=self.size,
+                                   pos=self.pos,
+                                   border=self.border))
     def _update_densest_tick(self, *args):
         tol = self.scale_tolerances
         scale = self.scale
