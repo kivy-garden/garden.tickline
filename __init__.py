@@ -812,7 +812,7 @@ class Tickline(StencilView):
     def _update_densest_tick(self, *args):
         tol = self.scale_tolerances
         scale = self.scale
-        i = bisect(tol, scale)
+        i = bisect([t[0] for t in tol], scale)
         # tol[i-1] contains the tick with the largest scale_factor that can
         # still be displayed, or in other words, the tick with the smallest
         # interval
